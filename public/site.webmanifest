@@ -1,0 +1,10 @@
+{
+  "name":"LocalBite",
+  "short_name":"LocalBite",
+  "start_url":"/",
+  "display":"standalone",
+  "background_color":"#fbfbfd",
+  "theme_color":"#ff5a36",
+  "description":"Hyperlocal food discovery, QR menus, ordering and digital business tools.",
+  "icons":[{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}

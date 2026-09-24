@@ -1,0 +1,400 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole { CUSTOMER VENDOR_ADMIN STAFF SALES_ADMIN SUPER_ADMIN }
+enum VendorStatus { PENDING VERIFIED REJECTED SUSPENDED }
+enum OrderType { DELIVERY PICKUP DINE_IN }
+enum OrderStatus { PLACED ACCEPTED PREPARING READY OUT_FOR_DELIVERY DELIVERED SERVED COMPLETED CANCELLED }
+enum PaymentStatus { PENDING PAID FAILED REFUNDED PARTIAL_REFUND }
+enum DeliveryStatus { NEW ACCEPTED PICKUP IN_TRANSIT DELIVERED CANCELLED }
+enum ReviewStatus { PUBLISHED PENDING FLAGGED REMOVED }
+enum TicketStatus { OPEN ASSIGNED IN_PROGRESS RESOLVED CLOSED }
+
+model User {
+  id           String   @id @default(cuid())
+  phone        String?  @unique
+  email        String?  @unique
+  name         String?
+  language     String   @default("en")
+  role         UserRole @default(CUSTOMER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  vendors      Vendor[] @relation("VendorOwner")
+  employees    Employee[]
+  addresses    Address[]
+  orders       Order[]
+  reviews      Review[]
+  favorites    Favorite[]
+  notifications Notification[]
+  supportTickets SupportTicket[]
+}
+
+model Vendor {
+  id              String       @id @default(cuid())
+  ownerId         String
+  owner           User         @relation("VendorOwner", fields: [ownerId], references: [id])
+  name            String
+  slug            String       @unique
+  category        String
+  status          VendorStatus @default(PENDING)
+  phone           String?
+  whatsapp        String?
+  email           String?
+  address         String?
+  cityId          String?
+  state           String?
+  pincode         String?
+  lat             Decimal?     @db.Decimal(10,7)
+  lng             Decimal?     @db.Decimal(10,7)
+  deliveryRadius  Int          @default(3)
+  deliveryEnabled Boolean      @default(false)
+  pickupEnabled   Boolean      @default(true)
+  dineInEnabled   Boolean      @default(false)
+  verifiedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  locations       VendorLocation[]
+  employees       Employee[]
+  menuCategories  MenuCategory[]
+  menuItems       MenuItem[]
+  orders          Order[]
+  tables          RestaurantTable[]
+  qrCodes         QRCode[]
+  reviews         Review[]
+  favorites       Favorite[]
+  promotions      Promotion[]
+  subscriptions   Subscription[]
+  advertisements  Advertisement[]
+  invoices        Invoice[]
+  supportTickets  SupportTicket[]
+  deliveries      Delivery[]
+  analytics       AnalyticsEvent[]
+}
+
+model VendorLocation {
+  id        String  @id @default(cuid())
+  vendorId  String
+  vendor    Vendor  @relation(fields: [vendorId], references: [id])
+  name      String
+  address   String?
+  lat       Decimal? @db.Decimal(10,7)
+  lng       Decimal? @db.Decimal(10,7)
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Employee {
+  id        String   @id @default(cuid())
+  userId    String
+  vendorId  String
+  user      User     @relation(fields: [userId], references: [id])
+  vendor    Vendor   @relation(fields: [vendorId], references: [id])
+  role      String
+  createdAt DateTime @default(now())
+}
+
+model MenuCategory {
+  id       String     @id @default(cuid())
+  vendorId String
+  vendor   Vendor     @relation(fields: [vendorId], references: [id])
+  name     String
+  sort     Int        @default(0)
+  items    MenuItem[]
+}
+
+model UniversalMenuItem {
+  id          String   @id @default(cuid())
+  name        String
+  hindiName   String?
+  category    String
+  description String?
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  items       MenuItem[]
+}
+
+model MenuItem {
+  id               String             @id @default(cuid())
+  vendorId         String
+  vendor           Vendor             @relation(fields: [vendorId], references: [id])
+  categoryId       String?
+  category         MenuCategory?      @relation(fields: [categoryId], references: [id])
+  universalId      String?
+  universal        UniversalMenuItem?  @relation(fields: [universalId], references: [id])
+  name             String
+  description      String?
+  price            Decimal            @db.Decimal(10,2)
+  imageUrl         String?
+  available        Boolean            @default(true)
+  veg              Boolean?
+  egg              Boolean?
+  bestseller      Boolean            @default(false)
+  prepMinutes      Int?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  orderItems       OrderItem[]
+}
+
+model Address {
+  id         String @id @default(cuid())
+  userId     String
+  user       User   @relation(fields: [userId], references: [id])
+  label      String
+  line1      String
+  line2      String?
+  city       String
+  state      String
+  pincode    String
+  lat        Decimal? @db.Decimal(10,7)
+  lng        Decimal? @db.Decimal(10,7)
+  isDefault  Boolean @default(false)
+}
+
+model Order {
+  id            String        @id @default(cuid())
+  userId        String?
+  vendorId      String
+  user         User?          @relation(fields: [userId], references: [id])
+  vendor       Vendor         @relation(fields: [vendorId], references: [id])
+  type          OrderType
+  status        OrderStatus   @default(PLACED)
+  paymentStatus PaymentStatus  @default(PENDING)
+  subtotal      Decimal       @db.Decimal(10,2)
+  deliveryFee   Decimal       @db.Decimal(10,2) @default(0)
+  serviceFee    Decimal       @db.Decimal(10,2) @default(0)
+  discount      Decimal       @db.Decimal(10,2) @default(0)
+  tax           Decimal       @db.Decimal(10,2) @default(0)
+  total         Decimal       @db.Decimal(10,2)
+  customerName  String?
+  address       String?
+  tableId       String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  items         OrderItem[]
+  payment       Payment?
+  delivery      Delivery?
+  invoice       Invoice?
+  refund        Refund?
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  menuItemId String
+  order      Order    @relation(fields: [orderId], references: [id])
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+  name       String
+  unitPrice  Decimal  @db.Decimal(10,2)
+  quantity   Int
+  addonsJson Json?
+  notes      String?
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  orderId         String        @unique
+  order           Order         @relation(fields: [orderId], references: [id])
+  provider        String
+  providerRef     String?
+  amount          Decimal       @db.Decimal(10,2)
+  status          PaymentStatus @default(PENDING)
+  createdAt       DateTime      @default(now())
+}
+
+model Delivery {
+  id          String         @id @default(cuid())
+  orderId     String         @unique
+  vendorId    String
+  order       Order          @relation(fields: [orderId], references: [id])
+  vendor      Vendor         @relation(fields: [vendorId], references: [id])
+  partnerId   String?
+  status      DeliveryStatus @default(NEW)
+  fee         Decimal        @db.Decimal(10,2) @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model DeliveryPartner {
+  id          String  @id @default(cuid())
+  name        String
+  phone       String?
+  vehicle     String?
+  isAvailable Boolean @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model RestaurantTable {
+  id        String   @id @default(cuid())
+  vendorId  String
+  vendor    Vendor   @relation(fields: [vendorId], references: [id])
+  number    Int
+  status    String   @default("AVAILABLE")
+  qrCodes   QRCode[]
+  createdAt DateTime @default(now())
+  @@unique([vendorId, number])
+}
+
+model QRCode {
+  id        String          @id @default(cuid())
+  vendorId  String
+  vendor    Vendor          @relation(fields: [vendorId], references: [id])
+  tableId   String?
+  table     RestaurantTable? @relation(fields: [tableId], references: [id])
+  token     String          @unique
+  kind      String
+  scans     Int             @default(0)
+  createdAt DateTime        @default(now())
+}
+
+model Review {
+  id        String       @id @default(cuid())
+  vendorId  String
+  userId    String?
+  vendor    Vendor       @relation(fields: [vendorId], references: [id])
+  user      User?        @relation(fields: [userId], references: [id])
+  rating    Int
+  text      String?
+  photoUrl  String?
+  status    ReviewStatus @default(PENDING)
+  createdAt DateTime     @default(now())
+}
+
+model Favorite {
+  id       String @id @default(cuid())
+  userId   String
+  vendorId String
+  user     User   @relation(fields: [userId], references: [id])
+  vendor   Vendor @relation(fields: [vendorId], references: [id])
+  createdAt DateTime @default(now())
+  @@unique([userId, vendorId])
+}
+
+model Coupon {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  type         String
+  value        Decimal  @db.Decimal(10,2)
+  minOrder     Decimal? @db.Decimal(10,2)
+  maxDiscount  Decimal? @db.Decimal(10,2)
+  active       Boolean  @default(true)
+  startsAt     DateTime?
+  endsAt       DateTime?
+}
+
+model Promotion {
+  id        String   @id @default(cuid())
+  vendorId  String
+  vendor    Vendor   @relation(fields: [vendorId], references: [id])
+  title     String
+  type      String
+  value     Decimal? @db.Decimal(10,2)
+  active    Boolean  @default(false)
+  startsAt  DateTime?
+  endsAt    DateTime?
+}
+
+model Subscription {
+  id         String   @id @default(cuid())
+  vendorId   String
+  vendor    Vendor   @relation(fields: [vendorId], references: [id])
+  plan       String
+  status     String   @default("ACTIVE")
+  startedAt  DateTime @default(now())
+  renewsAt   DateTime?
+}
+
+model Advertisement {
+  id         String   @id @default(cuid())
+  vendorId   String
+  vendor     Vendor   @relation(fields: [vendorId], references: [id])
+  type       String
+  keywords   Json?
+  area       String?
+  budget     Decimal? @db.Decimal(10,2)
+  active     Boolean  @default(false)
+  startsAt   DateTime?
+  endsAt     DateTime?
+}
+
+model Invoice {
+  id        String   @id @default(cuid())
+  vendorId  String
+  orderId   String   @unique
+  vendor    Vendor   @relation(fields: [vendorId], references: [id])
+  order     Order    @relation(fields: [orderId], references: [id])
+  number    String   @unique
+  subtotal  Decimal  @db.Decimal(10,2)
+  tax       Decimal  @db.Decimal(10,2)
+  total     Decimal  @db.Decimal(10,2)
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  body      String
+  channel   String
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+}
+
+model SupportTicket {
+  id        String       @id @default(cuid())
+  userId    String?
+  vendorId  String?
+  user      User?        @relation(fields: [userId], references: [id])
+  vendor    Vendor?      @relation(fields: [vendorId], references: [id])
+  subject   String
+  priority  String        @default("NORMAL")
+  status    TicketStatus  @default(OPEN)
+  body      String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model Refund {
+  id        String        @id @default(cuid())
+  orderId   String        @unique
+  order     Order         @relation(fields: [orderId], references: [id])
+  amount    Decimal       @db.Decimal(10,2)
+  status    String        @default("REQUESTED")
+  reason    String?
+  createdAt DateTime      @default(now())
+}
+
+model SalesAgent {
+  id          String   @id @default(cuid())
+  name        String
+  phone       String?
+  area        String?
+  commissionRate Decimal @db.Decimal(5,2) @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  vendorId  String?
+  vendor    Vendor?  @relation(fields: [vendorId], references: [id])
+  name      String
+  source    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
+
+model City {
+  id        String   @id @default(cuid())
+  name      String
+  state     String
+  active    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
